@@ -1,6 +1,5 @@
 package com.tenpearls.contactmanager.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tenpearls.contactmanager.exception.ErrorResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,7 +27,6 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomUserDetailsService customUserDetailsService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
@@ -70,26 +68,14 @@ public class SecurityConfig {
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json");
-                            ErrorResponse error = ErrorResponse.builder()
-                                    .timestamp(java.time.LocalDateTime.now())
-                                    .status(401)
-                                    .error("Unauthorized")
-                                    .message("Full authentication is required to access this resource")
-                                    .path(request.getRequestURI())
-                                    .build();
-                            objectMapper.writeValue(response.getOutputStream(), error);
+                            String safePath = request.getRequestURI() != null ? request.getRequestURI().replace("\"", "\\\"") : "";
+                            response.getWriter().write("{\"timestamp\":\"" + java.time.LocalDateTime.now() + "\",\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Full authentication is required to access this resource\",\"path\":\"" + safePath + "\"}");
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType("application/json");
-                            ErrorResponse error = ErrorResponse.builder()
-                                    .timestamp(java.time.LocalDateTime.now())
-                                    .status(403)
-                                    .error("Forbidden")
-                                    .message("Access denied")
-                                    .path(request.getRequestURI())
-                                    .build();
-                            objectMapper.writeValue(response.getOutputStream(), error);
+                            String safePath = request.getRequestURI() != null ? request.getRequestURI().replace("\"", "\\\"") : "";
+                            response.getWriter().write("{\"timestamp\":\"" + java.time.LocalDateTime.now() + "\",\"status\":403,\"error\":\"Forbidden\",\"message\":\"Access denied\",\"path\":\"" + safePath + "\"}");
                         })
                 )
                 .authenticationProvider(authenticationProvider())
