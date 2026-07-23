@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.security.Principal;
 import org.springframework.security.authentication.BadCredentialsException;
 
 import static org.mockito.ArgumentMatchers.any;
