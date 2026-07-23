@@ -15,7 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.security.Principal;
+import org.springframework.security.authentication.BadCredentialsException;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -127,5 +127,38 @@ class AuthControllerTest {
                 .andExpect(content().string("Password changed successfully"));
 
         verify(userService, times(1)).changePassword(eq("user@example.com"), any(ChangePasswordRequest.class));
+    }
+
+    @Test
+    void login_Failure_InvalidCredentials() throws Exception {
+        when(userService.login(any(LoginRequest.class)))
+                .thenThrow(new BadCredentialsException("Invalid email/phone or password"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, times(1)).login(any(LoginRequest.class));
+    }
+
+    @Test
+    void getCurrentUser_Unauthenticated() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).getCurrentUser(anyString());
+    }
+
+    @Test
+    void changePassword_Unauthenticated() throws Exception {
+        ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest("password123", "newPassword123");
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(changePasswordRequest)))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).changePassword(anyString(), any(ChangePasswordRequest.class));
     }
 }

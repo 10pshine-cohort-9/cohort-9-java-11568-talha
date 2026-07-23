@@ -8,6 +8,7 @@ import com.tenpearls.contactmanager.model.User;
 import com.tenpearls.contactmanager.repository.UserRepository;
 import com.tenpearls.contactmanager.security.JwtTokenProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -68,7 +69,13 @@ public class UserServiceImpl implements UserService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .build();
 
-        User savedUser = userRepository.save(user);
+        User savedUser;
+        try {
+            savedUser = userRepository.save(user);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResourceAlreadyExistsException("Email or phone number is already registered");
+        }
+
         log.info("User registered successfully with ID: {}", savedUser.getId());
 
         return mapToUserResponse(savedUser);
@@ -77,7 +84,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        log.info("Processing user login request for user: {}", request.getUsername());
+        log.info("Processing user login request");
 
         // Authenticate user via AuthenticationManager
         Authentication authentication = authenticationManager.authenticate(
@@ -93,9 +100,7 @@ public class UserServiceImpl implements UserService {
         String jwt = tokenProvider.generateToken(authentication);
 
         // Find the user to get ID and details
-        User user = userRepository.findByEmail(request.getUsername())
-                .orElseGet(() -> userRepository.findByPhone(request.getUsername())
-                        .orElseThrow(() -> new UsernameNotFoundException("User not found: " + request.getUsername())));
+        User user = findUserByUsername(request.getUsername());
 
         log.info("User authenticated successfully. Generating response for ID: {}", user.getId());
 
@@ -110,32 +115,32 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserResponse getCurrentUser(String username) {
-        User user = userRepository.findByEmail(username)
-                .orElseGet(() -> userRepository.findByPhone(username)
-                        .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username)));
-
+        User user = findUserByUsername(username);
         return mapToUserResponse(user);
     }
 
     @Override
     @Transactional
     public void changePassword(String username, ChangePasswordRequest request) {
-        log.info("Processing password change request for user: {}", username);
-
-        User user = userRepository.findByEmail(username)
-                .orElseGet(() -> userRepository.findByPhone(username)
-                        .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username)));
+        User user = findUserByUsername(username);
+        log.info("Processing password change request for user ID: {}", user.getId());
 
         // Verify current password matches
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            log.warn("Password change failed: current password incorrect for user {}", username);
+            log.warn("Password change failed: current password incorrect for user ID {}", user.getId());
             throw new UnauthorizedException("Incorrect current password");
         }
 
         // Save new password
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
-        log.info("Password changed successfully for user: {}", username);
+        log.info("Password changed successfully for user ID: {}", user.getId());
+    }
+
+    private User findUserByUsername(String username) {
+        return userRepository.findByEmail(username)
+                .orElseGet(() -> userRepository.findByPhone(username)
+                        .orElseThrow(() -> new UsernameNotFoundException("User not found")));
     }
 
     private UserResponse mapToUserResponse(User user) {
